@@ -12,14 +12,38 @@ dayIndex = 0
 editDaySelected = ""
 
 
+def isValidFile(fileName):
+    if os.path.exists(fileName):
+        try:
+            with open(fileName, "r") as f:
+                yaml.load(f, Loader=yaml.FullLoader)
+        except yaml.YAMLError as e:
+            return e
+    else:
+        return "File not found"
+
+    if not isinstance(moneyData, dict):
+        return "data.yml is not a valid yaml file"
+
+    return True
+
+
 def loadData():
     global moneyData
-    if os.path.exists("data.yml"):
+    if isValidFile("data.yml") == True:
         with open("data.yml", "r") as f:
             moneyData = yaml.load(f, Loader=yaml.FullLoader)
 
-    if not isinstance(moneyData, dict):
-        moneyData = {}
+
+def backupData():
+    if os.path.exists("data.yml"):
+        os.rename("data.yml", "data Backup.yml")
+
+
+def isHasBackup():
+    if os.path.exists("data Backup.yml"):
+        return True
+    return False
 
 
 def saveData():
@@ -68,7 +92,13 @@ def parseNumFromStr(strContent: str, nNum: int = 1):
 
 def mainScreen():
     global screen, moneyData, editIndex, dayIndex
-    loadData()
+
+    isValidData = isValidFile("data.yml")
+    if isValidData != True and isValidData != "File not found":
+        backupData()
+
+    if isValidData == True:
+        loadData()
 
     thisTime = time.localtime(time.time())
     sumMoney = 0
@@ -126,6 +156,11 @@ def mainScreen():
     print("'insert' for insert new money data")
     print()
     print("'exit' for exit")
+
+    if isHasBackup():
+        printRed("\n/!\\ WARNING: Backup file found (data Backup.yml) /!\\")
+        printRed("with error message:", isValidFile("data Backup.yml"))
+        printRed("Delete 'data Backup.yml' to dismiss this warning")
 
     inputCmd = input("Enter money or command : ").strip().lower()
     allNums = parseNumFromStr(inputCmd)
