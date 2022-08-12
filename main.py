@@ -1,9 +1,10 @@
 import os
 import yaml
+import chalk
+import inquirer
 import time
 from msvcrt import getch
 
-from message import *
 
 moneyData = {}
 screen = "main"
@@ -105,51 +106,52 @@ def mainScreen():
     for eachDay in moneyData:
         sumMoney += moneyData[eachDay]
 
-    printBold("\nMONEY SUMMARY...")
+    print(chalk.magenta("\nMONEY", bold=True, underline=True),
+          chalk.magenta("SUMMARY...", bold=True, underline=True))
     if sumMoney >= 200:
-        printGreen("\t->", sumMoney, "Baht")
+        print(chalk.green(f"\t-> {sumMoney} Baht"))
     elif sumMoney >= 0:
-        printYellow("\t->", sumMoney, "Baht")
+        print(chalk.yellow(f"\t-> {sumMoney} Baht"))
     else:
-        printRed("\t->", sumMoney, "Baht")
+        print(chalk.red(f"\t-> {sumMoney} Baht"))
 
     # ? Monthly Summary
     sumMoney = 0
-    print("\n")
-    printBold("MONTHLY SUMMARY...")
+    print(chalk.magenta("\nMONTY SUMMARY...", bold=True))
     prefixYearMonth = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}"
     for day in moneyData:
         if day.startswith(prefixYearMonth):
             sumMoney += moneyData[day]
 
-    printMagenta("  [", monthNumToStr(thisTime.tm_mon), thisTime.tm_year, "]")
+    print(chalk.magenta(
+        f"  [ {monthNumToStr(thisTime.tm_mon)} {thisTime.tm_year} ]"))
     if sumMoney >= 200:
-        printGreen("\t->", sumMoney, "Baht")
+        print(chalk.green(f"\t-> {sumMoney} Baht"))
     elif sumMoney >= 0:
-        printYellow("\t->", sumMoney, "Baht")
+        print(chalk.yellow(f"\t-> {sumMoney} Baht"))
     else:
-        printRed("\t->", sumMoney, "Baht")
+        print(chalk.red(f"\t-> {sumMoney} Baht"))
 
     todayStr = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}-{thisTime.tm_mday:02d}"
 
-    printBold("\nTODAY'S MONEY...")
+    print(chalk.white("\nTODAY'S MONEY...", bold=True))
     if todayStr in moneyData:
         if moneyData[todayStr] >= 0:
-            printGreen("\t  ", moneyData[todayStr], "Baht")
+            print(chalk.green(f"\t-> {moneyData[todayStr]} Baht"))
         else:
-            printRed("\t  ", moneyData[todayStr], "Baht")
+            print(chalk.red(f"\t-> {moneyData[todayStr]} Baht"))
     else:
-        printYellow("\t  ", "No data")
+        print(chalk.yellow("\t   No data"))
 
     print("\n")
-    printBold("Last 7 days...")
+    print(chalk.white("Last 7 days...", bold=True))
     allDay = list(moneyData.keys())
     sorted(allDay, reverse=True)
     for eachDay in allDay[:-7:-1]:
         if moneyData[eachDay] >= 0:
-            printGreen("\t", eachDay, ":", moneyData[eachDay], "Baht")
+            print(chalk.green(f"\t-> {eachDay} : {moneyData[eachDay]} Baht"))
         else:
-            printRed("\t", eachDay, ":", moneyData[eachDay], "Baht")
+            print(chalk.red(f"\t-> {eachDay} : {moneyData[eachDay]} Baht"))
 
     print("\n")
     print("'edit' for edit money data")
@@ -158,9 +160,10 @@ def mainScreen():
     print("'exit' for exit")
 
     if isHasBackup():
-        printRed("\n/!\\ WARNING: Backup file found (data Backup.yml) /!\\")
-        printRed("with error message:", isValidFile("data Backup.yml"))
-        printRed("Delete 'data Backup.yml' to dismiss this warning")
+        print(chalk.red("\n/!\\ WARNING: Backup file found (data Backup.yml) /!\\"))
+        print(
+            chalk.red(f"with error message: {isValidFile('data Backup.yml')}"))
+        print(chalk.red("Delete 'data Backup.yml' to dismiss this warning"))
 
     inputCmd = input("Enter money or command : ").strip().lower()
     allNums = parseNumFromStr(inputCmd)
@@ -194,85 +197,51 @@ def edit():
         allMonth.add("-".join(dayData[:2]))
     allMonth = sorted(list(allMonth))
 
-    if editIndex > len(allMonth) or editIndex < 0:
-        thisTime = time.localtime(time.time())
-        thisMonth = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}"
-        if thisMonth in allMonth:
-            editIndex = allMonth.index(thisMonth)
-        else:
-            editIndex = len(allMonth) - 1
+    selectedMonth = inquirer.prompt([inquirer.List("monthYear", message="Select month",
+                                                   choices=allMonth)])["monthYear"]
 
     dayInMonth = []
     for eachDay in moneyData:
         dayData = eachDay.split("-")
-        if dayData[:2] == allMonth[editIndex].split("-"):
-            dayInMonth.append(eachDay)
+        if dayData[:2] == selectedMonth.split("-"):
+            dayInMonth.append(
+                f"{eachDay}\t({moneyData[eachDay] < 0 and '-' or '+' } {abs(moneyData[eachDay])})")
     dayInMonth = sorted(dayInMonth)
 
-    printBold("\nEDIT MONEY DATA...")
-    printBold(" <   ", allMonth[editIndex], "   >")
-    for i, eachDay in enumerate(dayInMonth):
+    selectedDay = inquirer.prompt([inquirer.List("day", message="Select day",
+                                                 choices=dayInMonth)])["day"]
 
-        if i == dayIndex:
-            printYellow(" [", eachDay, "is", moneyData[eachDay], "Baht ]")
-        else:
-            print("  ", eachDay, "is", moneyData[eachDay], "Baht")
+    choice = inquirer.prompt([inquirer.List("cmd", message=f"Editing {selectedDay}?",
+                                            choices=["Yes", "No (Back to menu)"])])["cmd"]
 
-    if dayIndex == len(dayInMonth):
-        printBlue("  [Done]")
+    if choice == "Yes":
+        editDaySelected = selectedDay.split("\t")[0]
+        screen = "editDay"
     else:
-        print("  -Done-")
-
-    print("\n\n")
-    print("Use 'A' and 'D' to change month")
-    print("Use 'W' and 'S' to change day")
-    print("Use 'Enter' to Select")
-    key = ord(getch())
-
-    if key != 13 and key != 27:
-        try:
-            keyChar = chr(key).upper()
-        except:
-            return
-
-    if key == 13:
-        # ? Enter
-        if dayIndex == len(dayInMonth):
-            screen = "main"
-        else:
-            screen = "editDay"
-            editDaySelected = dayInMonth[dayIndex]
-    elif key == 27:
-        # ? ESC
         screen = "main"
-    elif keyChar == 'A':
-        editIndex = max(editIndex - 1, 0)
-    elif keyChar == 'D':
-        editIndex = min(editIndex + 1, len(allMonth) - 1)
-    elif keyChar == 'W':
-        dayIndex = max(dayIndex - 1, 0)
-    elif keyChar == 'S':
-        dayIndex = min(dayIndex + 1, len(dayInMonth))
 
 
 def editDay():
     global moneyData, editDaySelected, screen
-    printBold("EDIT DAY", editDaySelected)
+    print(chalk.white(f"EDIT DAY {editDaySelected}", bold=True))
     if moneyData[editDaySelected] >= 0:
-        printGreen("\t", moneyData[editDaySelected], "Baht")
+        print(chalk.green(f"\t {moneyData[editDaySelected]} Baht"))
     else:
-        printRed("\t", moneyData[editDaySelected], "Baht")
+        print(chalk.red(f"\t {moneyData[editDaySelected]} Baht"))
 
     print("\n")
     newData = input("Enter new data : ").strip()
 
     if newData == "":
-        cmd = input("'Z'ero or 'D'elete : ")
-        if cmd.upper() == "Z":
-            moneyData[editDaySelected] = 0
-            saveData()
-        elif cmd.upper() == "D":
+        cmd = inquirer.prompt([inquirer.List("cmd", message=f"Zero data?",
+                                             choices=[f"{editDaySelected} = 0", "Delete"])])["cmd"]
+        if cmd == "Delete":
             del moneyData[editDaySelected]
+            saveData()
+            print(chalk.red(f"\t{editDaySelected} deleted..."))
+            time.sleep(2)
+        else:
+            moneyData[editDaySelected] = 0
             saveData()
         screen = "main"
         return
@@ -326,58 +295,25 @@ def insert():
         if dayStr not in moneyData:
             suggestDates.append(dayStr)
 
-    printBold("\nINSERT NEW MONEY DATA...")
+    print(chalk.white("INSERT NEW MONEY DATA...", bold=True))
     print("\n")
-    printMagenta("Suggested date : ")
-    for i, eachDay in enumerate(suggestDates):
-        if i == dayIndex:
-            printYellow(" [", eachDay, "]")
-        else:
-            print("  ", eachDay)
-    print("\n")
+    print(chalk.magenta("Select date"))
+    selectedDay = inquirer.prompt([inquirer.List(
+        "day", message="Select day", choices=suggestDates + ["Custom Insert", "Done"])])["day"]
 
-    if dayIndex == len(suggestDates):
-        printBlue("  [Custom Insert]")
-    else:
-        print("  -Custom Insert-")
+    if selectedDay == "Custom Insert":
+        screen = "insertSelectCustom"
+        customSelectDay = thisDay
+        customSelectMonth = thisMonth
+        customSelectYear = thisYear
+        dayIndex = 0
 
-    if dayIndex == len(suggestDates) + 1:
-        printBlue("  [Done]")
-    else:
-        print("  -Done-")
-
-    print("Use 'W' and 'S' to Move Up and Down")
-    print("Use 'Enter' to Select")
-    key = ord(getch())
-
-    if key != 13 and key != 27:
-        try:
-            keyChar = chr(key).upper()
-        except:
-            return
-
-    if key == 13:
-        # ? Enter
-        if dayIndex == len(suggestDates):
-            screen = "insertSelectCustom"
-            customSelectDay = thisDay
-            customSelectMonth = thisMonth
-            customSelectYear = thisYear
-            dayIndex = 0
-
-        elif dayIndex == len(suggestDates) + 1:
-            screen = "main"
-        else:
-            screen = "editDay"
-            editDaySelected = suggestDates[dayIndex]
-            moneyData[editDaySelected] = 0
-    elif key == 27:
-        # ? ESC
+    elif selectedDay == "Done":
         screen = "main"
-    elif keyChar == 'W':
-        dayIndex = max(dayIndex - 1, 0)
-    elif keyChar == 'S':
-        dayIndex = min(dayIndex + 1, len(suggestDates) + 1)
+    else:
+        screen = "editDay"
+        editDaySelected = selectedDay
+        moneyData[editDaySelected] = 0
 
 
 def insertSelectCustom():
@@ -386,50 +322,52 @@ def insertSelectCustom():
     customSelectDay = min(customSelectDay, getDaysInMonth(
         customSelectYear, customSelectMonth))
 
-    printBold("Select Custom Date")
+    print(chalk.white("Select Custom Date", bold=True))
     print("\n\n")
-    printBlue("  DAY  MONTH  YEAR")
+    print("  " + chalk.blue("DAY", underline=True) + "  "
+          + chalk.blue("MONTH", underline=True) + "  "
+          + chalk.blue("YEAR", underline=True))
 
     # ? Arrow
     if dayIndex == 0:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("   ^              ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("   ^              "))
     elif dayIndex == 1:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("         ^         ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("         ^         "))
     elif dayIndex == 2:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("                ^  ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("                ^  "))
 
     # ? Number
     print("  ", end="")
     if dayIndex == 0:
-        printMagenta(f"{customSelectDay:02d}", end="")
+        print(chalk.magenta(f"{customSelectDay:02d}"), end="")
         print(f"    {customSelectMonth:02d}", end="")
         print(f"    {customSelectYear:04d}")
     elif dayIndex == 1:
         print(f"{customSelectDay:02d}", end="")
-        printMagenta(f"    {customSelectMonth:02d}", end="")
+        print(f"    {customSelectMonth:02d}", end="")
         print(f"    {customSelectYear:04d}")
     elif dayIndex == 2:
         print(f"{customSelectDay:02d}", end="")
         print(f"    {customSelectMonth:02d}", end="")
-        printMagenta(f"    {customSelectYear:04d}")
+        print(f"    {customSelectYear:04d}")
 
     # ? Arrow
     if dayIndex == 0:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("   v              ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("   v              "))
     elif dayIndex == 1:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("         v         ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("         v         "))
     elif dayIndex == 2:
-        # ?             DAY  MONTH  YEAR
-        printMagenta("                v  ")
+        # ?                    DAY  MONTH  YEAR
+        print(chalk.magenta("                v  "))
 
     dayStr = f"{customSelectYear}-{customSelectMonth:02d}-{customSelectDay:02d}"
     if dayStr in moneyData:
-        printRed("Can't insert duplicate date!")
+        print(chalk.red("Can't insert duplicate date!"))
     else:
         print()
     print("\n")
@@ -488,7 +426,8 @@ if __name__ == "__main__":
         elif screen == "insertSelectCustom":
             insertSelectCustom()
         else:
-            printRed("Not implemented yet")
+            print(chalk.red("ERROR"))
+            print(chalk.red("Not implemented yet"))
             screen = "main"
             time.sleep(1)
             continue
