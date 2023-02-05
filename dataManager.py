@@ -46,3 +46,16 @@ def saveData():
 def getMoneyData():
     loadData()
     return moneyData
+
+
+def insertOrModify(day, money):
+    global moneyData
+    moneyData[day] = money
+    saveData()
+
+
+def deleteData(day):
+    global moneyData
+    if day in moneyData:
+        del moneyData[day]
+        saveData()

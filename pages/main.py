@@ -91,11 +91,7 @@ def screen():
             return "insert"
     else:
         newMoney = allNums
-
         if todayStr in moneyData:
-            moneyData[todayStr] += newMoney
-        else:
-            moneyData[todayStr] = newMoney
-
-        dataMan.saveData()
+            newMoney += moneyData[todayStr]
+        dataMan.insertOrModify(todayStr, newMoney)
         return "main"

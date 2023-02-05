@@ -27,12 +27,11 @@ def editDay(editDaySelected: str):
                                              choices=[f"{editDaySelected} = 0", chalk.red("Delete", bold=True)])])["cmd"]
         if cmd == chalk.red("Delete", bold=True):
             del moneyData[editDaySelected]
-            dataMan.saveData()
+            dataMan.deleteData(editDaySelected)
             print(chalk.red(f"\t{editDaySelected} deleted..."))
             time.sleep(2)
         else:
-            moneyData[editDaySelected] = 0
-            dataMan.saveData()
+            dataMan.insertOrModify(editDaySelected, 0)
         return
 
     try:
@@ -40,8 +39,7 @@ def editDay(editDaySelected: str):
     except:
         return
 
-    moneyData[editDaySelected] = newData
-    dataMan.saveData()
+    dataMan.insertOrModify(editDaySelected, newData)
 
 
 def screen():
