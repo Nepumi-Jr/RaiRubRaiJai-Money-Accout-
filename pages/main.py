@@ -1,6 +1,7 @@
 import dataManager as dataMan
 import time
 import chalk
+from readchar import key, readkey
 from util import *
 
 
@@ -68,10 +69,6 @@ def screen():
             print(chalk.red(f"\t-> {eachDay} : {moneyData[eachDay]} Baht"))
 
     print("\n")
-    print("'edit' for edit money data")
-    print("'insert' for insert new money data")
-    print()
-    print("'exit' for exit")
 
     if dataMan.isHasBackup():
         print(chalk.red("\n/!\\ WARNING: Backup file found (data Backup.yml) /!\\"))
@@ -79,19 +76,65 @@ def screen():
             chalk.red(f"with error message: {dataMan.isValidFile('data Backup.yml')}"))
         print(chalk.red("Delete 'data Backup.yml' to dismiss this warning"))
 
-    inputCmd = input("Enter money or command : ").strip().lower()
-    allNums = parseNumFromStr(inputCmd)
-    if isinstance(allNums, list):
-        # ? cmd
-        if inputCmd.startswith("ed"):
-            return "edit"
-        elif inputCmd.startswith("ex"):
-            exit(0)
-        elif inputCmd.startswith("i"):
-            return "insert"
-    else:
-        newMoney = allNums
-        if todayStr in moneyData:
-            newMoney += moneyData[todayStr]
-        dataMan.insertOrModify(todayStr, newMoney)
-        return "main"
+    inputMode = "money"
+    selectedCmdInd = 0
+    strMoney = ""
+    print("Enter amount of money or move arrow to select command")
+
+    cmdModes = [("editing money data", lambda: "edit"),
+                ("insert new money data", lambda: "insert"),
+                ("exit program", lambda: exit(0))]
+    print(chalk.yellow(f"$ : "), end="", flush=True)
+    while True:
+        keyInput = readkey()
+        # ? reset
+        moveCursor(left=9999)
+        if inputMode == "cmd":
+            moveCursor(up=len(cmdModes) + 1)
+        print("\033[0J", end="", flush=True)
+
+        # ? process
+        if inputMode == "money":
+            if keyInput == key.BACKSPACE:
+                strMoney = strMoney[:-1]
+            elif keyInput == key.ENTER:
+                newMoney = parseNumFromStr(strMoney)
+                if todayStr in moneyData:
+                    newMoney += moneyData[todayStr]
+                dataMan.insertOrModify(todayStr, newMoney)
+                return "main"
+            elif keyInput in "0123456789.+-":
+                strMoney += keyInput
+            elif keyInput == key.UP or keyInput == key.DOWN:
+                inputMode = "cmd"
+                selectedCmdInd = 0
+
+        elif inputMode == "cmd":
+            if keyInput == key.UP:
+                selectedCmdInd = max(selectedCmdInd - 1, 0)
+            elif keyInput == key.DOWN:
+                selectedCmdInd = min(selectedCmdInd + 1, len(cmdModes) - 1)
+            elif keyInput == key.ENTER:
+                moveCursor(left=9999, up=9999)
+                print("\033[0J", end="", flush=True)
+                return cmdModes[selectedCmdInd][1]()
+            elif keyInput in "0123456789.+-":
+                inputMode = "money"
+                strMoney = keyInput
+
+        # ? display
+        if inputMode == "money":
+            thisNum = parseNumFromStr(strMoney)
+            if thisNum == []:
+                print(chalk.yellow(f"$ : {strMoney}"), end="", flush=True)
+            elif thisNum >= 0:
+                print(chalk.green(f"$ : {strMoney}"), end="", flush=True)
+            else:
+                print(chalk.red(f"$ : {strMoney}"), end="", flush=True)
+
+        elif inputMode == "cmd":
+            for i in range(len(cmdModes)):
+                if i == selectedCmdInd:
+                    print(chalk.yellow(f"-> {cmdModes[i][0]}"))
+                else:
+                    print(f"   {cmdModes[i][0]}")

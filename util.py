@@ -17,7 +17,8 @@ def parseNumFromStr(strContent: str, nNum: int = 1):
                     lastR = r
                 else:
                     break
-            nums.append(int(strContent[l:(lastR + 1)]))
+            if isInt(strContent[l:(lastR + 1)]):
+                nums.append(int(strContent[l:(lastR + 1)]))
             l = lastR + 1
         else:
             l += 1
@@ -56,3 +57,10 @@ def getDaysInMonth(year, month):
         return 30
     else:
         return 31
+
+
+def moveCursor(left=0, down=0, up=0, right=0):
+    print("\033[{}A".format(up), end="")
+    print("\033[{}B".format(down), end="")
+    print("\033[{}C".format(right), end="")
+    print("\033[{}D".format(left), end="", flush=True)
