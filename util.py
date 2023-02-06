@@ -1,3 +1,6 @@
+import datetime
+
+
 def isInt(strContent):
     try:
         int(strContent)
@@ -38,6 +41,37 @@ def monthNumToStr(numMonth):
     return months[numMonth]
 
 
+def dayOfWeekNumToStr(numDay):
+    days = ["???", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    return days[numDay]
+
+
+def getDayOfWeek(year, month, day):
+    return datetime.date(year, month, day).weekday() + 1
+
+
+def getDayOfWeekStr(year, month, day):
+    return dayOfWeekNumToStr(getDayOfWeek(year, month, day))
+
+
+def getSuffixNumberOrder(num):
+    if num % 100 in [11, 12, 13]:
+        return "th"
+    else:
+        if num % 10 == 1:
+            return "st"
+        elif num % 10 == 2:
+            return "nd"
+        elif num % 10 == 3:
+            return "rd"
+        else:
+            return "th"
+
+
+def getFullDateStr(day, month, year):
+    return "{} {}{} {} {}".format(dayOfWeekNumToStr(getDayOfWeek(year, month, day)), day, getSuffixNumberOrder(day), monthNumToStr(month), year)
+
+
 def getDaysInMonth(year, month):
     if month == 2:
         if year % 4 == 0:
@@ -64,3 +98,26 @@ def moveCursor(left=0, down=0, up=0, right=0):
     print("\033[{}B".format(down), end="")
     print("\033[{}C".format(right), end="")
     print("\033[{}D".format(left), end="", flush=True)
+
+
+def clearAfterCursor():
+    print("\033[J", end="", flush=True)
+
+
+def compareDate(day1, month1, year1, day2, month2, year2):
+    if year1 > year2:
+        return 1
+    elif year1 < year2:
+        return -1
+    else:
+        if month1 > month2:
+            return 1
+        elif month1 < month2:
+            return -1
+        else:
+            if day1 > day2:
+                return 1
+            elif day1 < day2:
+                return -1
+            else:
+                return 0
