@@ -21,10 +21,9 @@ def editDay(editDaySelected: str):
 
     if editingDataMoney == None:
         printYellow("\t No data")
-    elif editingDataMoney >= 0:
-        printGreen(f"\t +{editingDataMoney} Baht")
     else:
-        printRed(f"\t {editingDataMoney} Baht")
+        printGreen(f"\t +{editingDataMoney[0]}$", end="")
+        printRed(f"   -{editingDataMoney[1]}$")
 
     print("\n")
 
@@ -37,6 +36,10 @@ def editDay(editDaySelected: str):
                                                                                             ANSIColorCode.YELLOW), "to select command")
 
     cmdModes = [("continue to edit", "resume", ANSIColorCode.YELLOW),
+                ("reset income(+) data (for today)",
+                 "reset Pos", ANSIColorCode.YELLOW),
+                ("reset cost(-) data (for today)",
+                 "reset Cost", ANSIColorCode.YELLOW),
                 ("remove this data", "remove", ANSIColorCode.RED),
                 ("cancel this edit", "cancel", ANSIColorCode.YELLOW),
                 ("save and exit", "save", ANSIColorCode.GREEN)]
@@ -52,8 +55,11 @@ def editDay(editDaySelected: str):
                 newMoney = parseNumFromStr(strMoney)
                 if newMoney != []:
                     if editingDataMoney == None:
-                        editingDataMoney = 0
-                    editingDataMoney += newMoney
+                        editingDataMoney = [0, 0]
+                    if newMoney > 0:
+                        editingDataMoney[0] += newMoney
+                    else:
+                        editingDataMoney[1] += -newMoney
                 return False
             elif keyInput in "0123456789.+-":
                 strMoney += keyInput
@@ -69,6 +75,12 @@ def editDay(editDaySelected: str):
             elif keyInput == key.ENTER:
 
                 if cmdModes[selectedCmdInd][1] == "resume":
+                    return False
+                elif cmdModes[selectedCmdInd][1] == "reset Pos":
+                    editingDataMoney = [0, editingDataMoney[1]]
+                    return False
+                elif cmdModes[selectedCmdInd][1] == "reset Cost":
+                    editingDataMoney = [editingDataMoney[0], 0]
                     return False
                 elif cmdModes[selectedCmdInd][1] == "remove":
                     cmd = inquirer.prompt([inquirer.List("cmd", message=f"Are you sure?",
@@ -89,7 +101,7 @@ def editDay(editDaySelected: str):
                 elif cmdModes[selectedCmdInd][1] == "cancel":
                     strRevert = "(revert to NO DATA)"
                     if editDaySelected in moneyData:
-                        strRevert = f"(revert to {(moneyData[editDaySelected] > 0) and '+' or ''}{moneyData[editDaySelected]})"
+                        strRevert = f"(revert to +{moneyData[editDaySelected][0]}$ -{moneyData[editDaySelected][1]}$)"
 
                     cmd = inquirer.prompt([inquirer.List("cmd", message=f"Are you sure? (the edit data will be lost) {strRevert}",
                                                          choices=["yes", "no"])])["cmd"]
@@ -133,25 +145,6 @@ def editDay(editDaySelected: str):
                     print(f"   {cmdModes[i][0]}")
 
         pInputMode = inputMode
-
-    if newData == "":
-        cmd = inquirer.prompt([inquirer.List("cmd", message=f"Zero data?",
-                                             choices=[f"{editDaySelected} = 0", "Delete"])])["cmd"]
-        if cmd == "Delete":
-            del moneyData[editDaySelected]
-            dataMan.deleteData(editDaySelected)
-            printRed(f"\t{editDaySelected} deleted...")
-            time.sleep(2)
-        else:
-            dataMan.insertOrModify(editDaySelected, 0)
-        return
-
-    try:
-        newData = int(newData)
-    except:
-        return
-
-    dataMan.insertOrModify(editDaySelected, newData)
 
 
 def screen():
@@ -217,8 +210,12 @@ def screen():
                     isComplete = editDay(editDaySelected)
                     if isComplete:
                         if editingDataMoney != None:
+                            dataMan.resetData(
+                                editDaySelected, pos=True, neg=True)
                             dataMan.insertOrModify(
-                                editDaySelected, editingDataMoney)
+                                editDaySelected, editingDataMoney[0])
+                            dataMan.insertOrModify(
+                                editDaySelected, -editingDataMoney[1])
                         break
                 return "main"
 
@@ -248,7 +245,7 @@ def screen():
             isThisSelectedChoice = (i == selectedDay)
 
             if dateStrKey in moneyData:
-                displayChoice = f"{displayDate} ({moneyData[dateStrKey] > 0 and '+' or ''}{moneyData[dateStrKey]})"
+                displayChoice = f"{displayDate}\t+{moneyData[dateStrKey][0]}$\t-{moneyData[dateStrKey][1]}$"
             else:
                 if compareWithToday != 1:
                     displayChoice = f"{displayDate} (no data)"
@@ -256,16 +253,12 @@ def screen():
                     displayChoice = f"{displayDate}"
 
             if isThisSelectedChoice:
-                displayChoice = f"\t\t[ {displayChoice} ]"
+                displayChoice = f"\t[\t{displayChoice}\t]"
             else:
-                displayChoice = f"\t\t  {displayChoice}  "
+                displayChoice = f"\t\t{displayChoice}"
 
             if dateStrKey in moneyData:
-                if moneyData[dateStrKey] >= 0:
-                    printGreen(displayChoice,
-                               bold=(isThisSelectedChoice))
-                else:
-                    printRed(displayChoice,
+                printMagenta(displayChoice,
                              bold=(isThisSelectedChoice))
             else:
 
@@ -287,31 +280,3 @@ def screen():
             "esc", ANSIColorCode.RED), " to back to main menu")
 
         firstTime = False
-
-    allMonth = set()
-    for eachDay in moneyData:
-        dayData = eachDay.split("-")
-        allMonth.add((dayData[0], dayData[1]))  # ? (year, month)
-    allMonth = sorted(list(allMonth))
-
-    selectedMonth = inquirer.prompt([inquirer.List("monthYear", message="Select month",
-                                                   choices=allMonth)])["monthYear"]
-
-    dayInMonth = []
-    for eachDay in moneyData:
-        dayData = eachDay.split("-")
-        if dayData[:2] == selectedMonth.split("-"):
-            dayInMonth.append(
-                f"{eachDay}\t({moneyData[eachDay] < 0 and '-' or '+' } {abs(moneyData[eachDay])})")
-    dayInMonth = sorted(dayInMonth)
-
-    selectedDay = inquirer.prompt([inquirer.List("day", message="Select day",
-                                                 choices=dayInMonth)])["day"]
-
-    choice = inquirer.prompt([inquirer.List("cmd", message=f"Editing {selectedDay}?",
-                                            choices=["Yes", "No (Back to menu)"])])["cmd"]
-
-    if choice == "Yes":
-        editDaySelected = selectedDay.split("\t")[0]
-        editDay(editDaySelected)
-    return "main"

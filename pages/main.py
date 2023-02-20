@@ -17,9 +17,9 @@ def screen():
         dataMan.loadData()
 
     thisTime = time.localtime(time.time())
-    sumMoney = 0
-    for eachDay in moneyData:
-        sumMoney += moneyData[eachDay]
+    todayStr = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}-{thisTime.tm_mday:02d}"
+
+    sumMoney = dataMan.getLastAccumulatedMoney(todayStr)
 
     print(paintTextFormat("\nMONEY", ANSIColorCode.MAGENTA, bold=True, underline=True),
           paintTextFormat("SUMMARY...", ANSIColorCode.MAGENTA, bold=True, underline=True))
@@ -31,45 +31,65 @@ def screen():
         printRed(f"\t-> {sumMoney} Baht")
 
     # ? Monthly Summary
-    sumMoney = 0
-    printMagenta("\nMONTY SUMMARY...", bold=True)
-    prefixYearMonth = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}"
-    for day in moneyData:
-        if day.startswith(prefixYearMonth):
-            sumMoney += moneyData[day]
+    # sumMoney = 0
+    # printMagenta("\nMONTY SUMMARY...", bold=True)
+    # prefixYearMonth = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}"
+    # for day in moneyData:
+    #     if day.startswith(prefixYearMonth):
+    #         sumMoney += moneyData[day][0]
+    #         sumMoney -= moneyData[day][1]
 
-    printMagenta(
-        f"  [ {monthNumToStr(thisTime.tm_mon)} {thisTime.tm_year} ]")
-    if sumMoney >= 200:
-        printGreen(f"\t-> {sumMoney} Baht")
-    elif sumMoney >= 0:
-        printYellow(f"\t-> {sumMoney} Baht")
-    else:
-        printRed(f"\t-> {sumMoney} Baht")
+    # printMagenta(
+    #     f"  [ {monthNumToStr(thisTime.tm_mon)} {thisTime.tm_year} ]")
+    # if sumMoney >= 200:
+    #     printGreen(f"\t-> {sumMoney} Baht")
+    # elif sumMoney >= 0:
+    #     printYellow(f"\t-> {sumMoney} Baht")
+    # else:
+    #     printRed(f"\t-> {sumMoney} Baht")
 
-    todayStr = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}-{thisTime.tm_mday:02d}"
-
+    expectedCostMoneyToday = sumMoney // (getDaysInMonth(
+        thisTime.tm_year, thisTime.tm_mon) - thisTime.tm_mday + 1)
     printStyle(
         f"\nTODAY'S MONEY... ({getFullDateStr(thisTime.tm_mday, thisTime.tm_mon, thisTime.tm_year)})", bold=True)
     if todayStr in moneyData:
-        if moneyData[todayStr] >= 0:
-            printGreen(f"\t-> {moneyData[todayStr]} Baht")
+        printGreen(f"\t-> +{moneyData[todayStr][0]}$", end="")
+
+        if moneyData[todayStr][1] >= expectedCostMoneyToday:  # ? 1 is index of cost money
+            # ? exceed expected cost money
+            printRed(f"   -{moneyData[todayStr][1]}$")
         else:
-            printRed(f"\t-> {moneyData[todayStr]} Baht")
+            printYellow(f"   -{moneyData[todayStr][1]}$")
     else:
         printYellow("\t   No data")
+    printMagenta(
+        f"\t-> Expected cost money: {expectedCostMoneyToday}$", italic=True)
 
     print("\n")
     printStyle("Last 7 days...", bold=True)
+
     allDay = list(moneyData.keys())
-    sorted(allDay, reverse=True)
-    for eachDay in allDay[:-7:-1]:
-        if moneyData[eachDay] >= 0:
-            printGreen(
-                f"\t-> {eachDay} : {moneyData[eachDay]} Baht", bold=(eachDay == todayStr))
+    allDay = sorted(allDay, reverse=True)[:7]
+
+    for eachDay in allDay:
+        eYear, eMonth = map(int, eachDay.split("-")[:2])
+        expectedCostMoney = dataMan.getLastAccumulatedMoney(
+            eachDay) // (getDaysInMonth(eYear, eMonth) - int(eachDay.split("-")[2]) + 1)
+        print(f"\t{eachDay} : ", end="")
+
+        printGreen(f"+{moneyData[eachDay][0]}$",
+                   bold=(eachDay == todayStr), end="")
+
+        if moneyData[eachDay][1] >= expectedCostMoney:  # ? 1 is index of cost money
+            # ? exceed expected cost money
+            printRed(f"\t-{moneyData[eachDay][1]}$",
+                     bold=(eachDay == todayStr), end="")
         else:
-            printRed(
-                f"\t-> {eachDay} : {moneyData[eachDay]} Baht", bold=(eachDay == todayStr))
+            printYellow(f"\t-{moneyData[eachDay][1]}$",
+                        bold=(eachDay == todayStr), end="")
+
+        printMagenta(
+            f"\t({expectedCostMoney}$)", bold=(eachDay == todayStr), italic=True)
 
     print("\n")
 
@@ -86,8 +106,11 @@ def screen():
                           ANSIColorCode.YELLOW), "amount of money or move", paintTextFormat("arrow key",
                                                                                             ANSIColorCode.YELLOW), "to select command")
 
-    cmdModes = [("editing money data", lambda: "edit"),
-                ("exit program", lambda: exit(0))]
+    cmdModes = [("reset income(+) data (for today)", "reset Pos", ANSIColorCode.YELLOW),
+                ("reset cost(-) data (for today)",
+                 "reset Cost", ANSIColorCode.YELLOW),
+                ("editing money data", "edit", "\033[38;5;39m"),
+                ("exit program", "exit", ANSIColorCode.RED)]
     printYellow(f"$ : ", end="", flush=True)
     while True:
         keyInput = readkey()
@@ -104,8 +127,6 @@ def screen():
             elif keyInput == key.ENTER:
                 newMoney = parseNumFromStr(strMoney)
                 if newMoney != []:
-                    if todayStr in moneyData:
-                        newMoney += moneyData[todayStr]
                     dataMan.insertOrModify(todayStr, newMoney)
                     return "main"
             elif keyInput in "0123456789.+-":
@@ -122,7 +143,16 @@ def screen():
             elif keyInput == key.ENTER:
                 moveCursor(left=9999, up=9999)
                 print("\033[0J", end="", flush=True)
-                return cmdModes[selectedCmdInd][1]()
+
+                if cmdModes[selectedCmdInd][1] == "reset Pos":
+                    dataMan.resetData(todayStr, pos=True)
+                elif cmdModes[selectedCmdInd][1] == "reset Cost":
+                    dataMan.resetData(todayStr, neg=True)
+                elif cmdModes[selectedCmdInd][1] == "edit":
+                    return "edit"
+                elif cmdModes[selectedCmdInd][1] == "exit":
+                    exit(0)
+                return "main"
             elif keyInput == key.ESC:
                 inputMode = "money"
                 strMoney = ""
@@ -143,10 +173,7 @@ def screen():
         elif inputMode == "cmd":
             for i in range(len(cmdModes)):
                 if i == selectedCmdInd:
-                    if cmdModes[i][0] == "exit program":
-                        printRed(f"-> {cmdModes[i][0]}")
-                    else:
-                        print(paintTextFormat(
-                            f"-> {cmdModes[i][0]}", "\033[38;5;39m"))
+                    print(paintTextFormat(
+                        f"-> {cmdModes[i][0]}", cmdModes[i][2]))
                 else:
                     print(f"   {cmdModes[i][0]}")
