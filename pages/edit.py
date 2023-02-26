@@ -3,6 +3,10 @@ import dataManager as dataMan
 import time
 import os
 import inquirer
+from math import log10
+
+import moneyDataModel as mData
+import moneyLabelManager as label
 
 from util import *
 from printUtil import *
@@ -19,132 +23,105 @@ def editDay(editDaySelected: str):
     print(paintTextFormat(f"Edit {editDaySelected}",
           "\033[38;5;39m", bold=True, underline=True), "\n")
 
-    if editingDataMoney == None:
+    if editDaySelected not in moneyData:
         printYellow("\t No data")
     else:
-        printGreen(f"\t +{editingDataMoney[0]}$", end="")
-        printRed(f"   -{editingDataMoney[1]}$")
+        incomeToday = 0
+        costToday = 0
+        for e in moneyData[editDaySelected]:
+            if e.isIncome():
+                incomeToday += e.amount
+            else:
+                costToday += e.amount
+        sp2 = " "*max(0, (6 - int(log10(max(incomeToday, 1)))))
+        printGreen(f"\t+{incomeToday}${sp2}", end="")
+        printRed(f"{costToday}$")
 
     print("\n")
 
-    inputMode = "money"
-    pInputMode = inputMode
-    selectedCmdInd = 0
-    strMoney = ""
-    print(paintTextFormat("Enter",
-                          ANSIColorCode.YELLOW), "amount of money or move", paintTextFormat("arrow key",
-                                                                                            ANSIColorCode.YELLOW), "to select command")
+    choiceFormats = []
+    if editDaySelected in moneyData:
+        for i, e in enumerate(moneyData[editDaySelected]):
+            choiceFormats.append(f"{i+1}: {e.getLabel()} {e.amount}$")
+    choiceFormats.append("Add new")
+    choiceFormats.append("Delete all (that day)")
+    choiceFormats.append("Done")
 
-    cmdModes = [("continue to edit", "resume", ANSIColorCode.YELLOW),
-                ("reset income(+) data (for today)",
-                 "reset Pos", ANSIColorCode.YELLOW),
-                ("reset cost(-) data (for today)",
-                 "reset Cost", ANSIColorCode.YELLOW),
-                ("remove this data", "remove", ANSIColorCode.RED),
-                ("cancel this edit", "cancel", ANSIColorCode.YELLOW),
-                ("save and exit", "save", ANSIColorCode.GREEN)]
-    printYellow(f"$ : ", end="", flush=True)
-    while True:
-        keyInput = readkey()
-
-        # ? process
-        if inputMode == "money":
-            if keyInput == key.BACKSPACE:
-                strMoney = strMoney[:-1]
-            elif keyInput == key.ENTER:
-                newMoney = parseNumFromStr(strMoney)
-                if newMoney != []:
-                    if editingDataMoney == None:
-                        editingDataMoney = [0, 0]
-                    if newMoney > 0:
-                        editingDataMoney[0] += newMoney
-                    else:
-                        editingDataMoney[1] += -newMoney
-                return False
-            elif keyInput in "0123456789.+-":
-                strMoney += keyInput
-            elif keyInput == key.UP or keyInput == key.DOWN or keyInput == key.ESC or keyInput == key.LEFT or keyInput == key.RIGHT:
-                inputMode = "cmd"
-                selectedCmdInd = 0
-
-        elif inputMode == "cmd":
-            if keyInput == key.UP:
-                selectedCmdInd = max(selectedCmdInd - 1, 0)
-            elif keyInput == key.DOWN:
-                selectedCmdInd = min(selectedCmdInd + 1, len(cmdModes) - 1)
-            elif keyInput == key.ENTER:
-
-                if cmdModes[selectedCmdInd][1] == "resume":
-                    return False
-                elif cmdModes[selectedCmdInd][1] == "reset Pos":
-                    editingDataMoney = [0, editingDataMoney[1]]
-                    return False
-                elif cmdModes[selectedCmdInd][1] == "reset Cost":
-                    editingDataMoney = [editingDataMoney[0], 0]
-                    return False
-                elif cmdModes[selectedCmdInd][1] == "remove":
-                    cmd = inquirer.prompt([inquirer.List("cmd", message=f"Are you sure?",
-                                                         choices=["yes", "no"], default="no")])["cmd"]
-                    if cmd == "yes":
-                        cmd = inquirer.prompt([inquirer.List("cmd", message=f"This data will be removed? (cannot undo)",
-                                                             choices=["YESSSS", "no..."], default="no...")])["cmd"]
-                        if cmd == "YESSSS":
-                            editingDataMoney = None
-                            dataMan.deleteData(editDaySelected)
-                            printRed(f"\t{editDaySelected} deleted...")
-                            time.sleep(2)
-                            return True
-                        else:
-                            return False
-                    else:
-                        return False
-                elif cmdModes[selectedCmdInd][1] == "cancel":
-                    strRevert = "(revert to NO DATA)"
-                    if editDaySelected in moneyData:
-                        strRevert = f"(revert to +{moneyData[editDaySelected][0]}$ -{moneyData[editDaySelected][1]}$)"
-
-                    cmd = inquirer.prompt([inquirer.List("cmd", message=f"Are you sure? (the edit data will be lost) {strRevert}",
-                                                         choices=["yes", "no"])])["cmd"]
-                    if cmd == "yes":
-                        editingDataMoney = None
-                        return True
-                    else:
-                        return False
-                elif cmdModes[selectedCmdInd][1] == "save":
-                    return True
-
-            elif keyInput == key.ESC:
-                inputMode = "money"
-                strMoney = ""
-            elif keyInput in "0123456789.+-":
-                inputMode = "money"
-                strMoney = keyInput
-
-        # ? reset
-        moveCursor(left=9999)
-        if pInputMode == "cmd":
-            moveCursor(up=len(cmdModes) + 1)
-        clearAfterCursor()
-
-        # ? display
-        if inputMode == "money":
-            thisNum = parseNumFromStr(strMoney)
-            if thisNum == []:
-                printYellow(f"$ : {strMoney}", end="", flush=True)
-            elif thisNum >= 0:
-                printGreen(f"$ : {strMoney}", end="", flush=True)
+    selectedOne = inquirer.prompt([inquirer.List("activity", message=f"Select the Activity",
+                                                 choices=choiceFormats)])["activity"]
+    if selectedOne == "Done":
+        return "main"
+    elif selectedOne == "Delete all (that day)":
+        isSure = inquirer.prompt(
+            [inquirer.Confirm("sure", message=f"Are you sure?")])["sure"]
+        if isSure:
+            isSure = inquirer.prompt(
+                [inquirer.Confirm("sure", message=f"ARE YOU TRULY SURE???")])["sure"]
+            if isSure:
+                dataMan.deleteDayData(editDaySelected)
+        return "main"
+    elif selectedOne == "Add new":
+        while True:
+            try:
+                newAmount = int(
+                    input(f"Enter the amount : "))
+            except:
+                pass
             else:
-                printRed(f"$ : {strMoney}", end="", flush=True)
+                break
 
-        elif inputMode == "cmd":
-            for i in range(len(cmdModes)):
-                if i == selectedCmdInd:
-                    print(paintTextFormat(
-                        f"-> {cmdModes[i][0]}", cmdModes[i][2]))
-                else:
-                    print(f"   {cmdModes[i][0]}")
+        newMoneyData = mData.MoneyData(newAmount, 0)
+        genChoice = []
+        for i, e in enumerate(label.getAllLabelId(newMoneyData.isIncome())):
+            genChoice.append(
+                f"{i+1}: {label.getLabel(newMoneyData.isIncome(), e)}")
 
-        pInputMode = inputMode
+        newLabel = inquirer.prompt([inquirer.List("label", message=f"Select the label",
+                                                  choices=genChoice)])["label"]
+
+        newLabelID = label.getAllLabelId(newMoneyData.isIncome())[
+            int(newLabel.split(":")[0]) - 1]
+        dataMan.insert(editDaySelected, newMoneyData.amount, newLabelID)
+        return "main"
+
+    selectedIndex = int(selectedOne.split(":")[0]) - 1
+    selectedMoneyData = moneyData[editDaySelected][selectedIndex]
+    action = inquirer.prompt([inquirer.List("action", message=f"What do you want to do?",
+                                            choices=["Edit", "Delete", "Back to menu"])])["action"]
+    if action == "Edit":
+        while True:
+            try:
+                newAmount = int(
+                    input(f"Enter the new amount : {selectedMoneyData.amount} ->  "))
+            except:
+                pass
+            else:
+                break
+
+        newMoneyData = mData.MoneyData(newAmount, 0)
+        genChoice = []
+        for i, e in enumerate(label.getAllLabelId(newMoneyData.isIncome())):
+            genChoice.append(
+                f"{i+1}: {label.getLabel(newMoneyData.isIncome(), e)}")
+
+        newLabel = inquirer.prompt([inquirer.List("label", message=f"Select the new label",
+                                                  choices=genChoice)])["label"]
+
+        newLabelID = label.getAllLabelId(newMoneyData.isIncome())[
+            int(newLabel.split(":")[0]) - 1]
+        dataMan.modify(editDaySelected, selectedIndex,
+                       newMoneyData.amount, newLabelID)
+
+        return "main"
+
+    elif action == "Delete":
+        isSure = inquirer.prompt(
+            [inquirer.Confirm("sure", message=f"Are you sure?")])["sure"]
+        if isSure:
+            dataMan.deleteMoneyData(editDaySelected, selectedIndex)
+        return "main"
+    elif action == "Back to menu":
+        return "main"
 
 
 def screen():
@@ -202,22 +179,8 @@ def screen():
                 return "main"
 
             elif thisKey == key.ENTER:
-                editingDataMoney = None
                 editDaySelected = f"{selectedYear}-{selectedMonth:02d}-{selectedDay:02d}"
-                if editDaySelected in moneyData:
-                    editingDataMoney = moneyData[editDaySelected]
-                while True:
-                    isComplete = editDay(editDaySelected)
-                    if isComplete:
-                        if editingDataMoney != None:
-                            dataMan.resetData(
-                                editDaySelected, pos=True, neg=True)
-                            dataMan.insertOrModify(
-                                editDaySelected, editingDataMoney[0])
-                            dataMan.insertOrModify(
-                                editDaySelected, -editingDataMoney[1])
-                        break
-                return "main"
+                return editDay(editDaySelected)
 
         # ? output
         # ? month row
@@ -245,7 +208,15 @@ def screen():
             isThisSelectedChoice = (i == selectedDay)
 
             if dateStrKey in moneyData:
-                displayChoice = f"{displayDate}\t+{moneyData[dateStrKey][0]}$\t-{moneyData[dateStrKey][1]}$"
+                costThatDay, incomeThatDay = 0, 0
+                for e in moneyData[dateStrKey]:
+                    if e.isIncome():
+                        incomeThatDay += e.amount
+                    else:
+                        costThatDay += e.amount
+                sp = " "*(10-len(displayDate))
+                sp2 = " "*max(0, (6 - int(log10(max(incomeThatDay, 1)))))
+                displayChoice = f"{displayDate}{sp}+{incomeThatDay}${sp2}{costThatDay}$"
             else:
                 if compareWithToday != 1:
                     displayChoice = f"{displayDate} (no data)"

@@ -4,14 +4,16 @@ from readchar import key, readkey
 from util import *
 from printUtil import *
 
+import moneyLabelManager as label
+
 
 def screen():
 
     moneyData = dataMan.getMoneyData()
 
-    isValidData = dataMan.isValidFile("data.yml")
+    isValidData = dataMan.isValidV3File("dataV3.yml")
     if isValidData != True and isValidData != "File not found":
-        dataMan.backupData()
+        dataMan.doBackupData()
 
     if isValidData == True:
         dataMan.loadData()
@@ -20,6 +22,8 @@ def screen():
     todayStr = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}-{thisTime.tm_mday:02d}"
 
     sumMoney = dataMan.getLastAccumulatedMoney(todayStr)
+
+    # ? print money summary
 
     print(paintTextFormat("\nMONEY", ANSIColorCode.MAGENTA, bold=True, underline=True),
           paintTextFormat("SUMMARY...", ANSIColorCode.MAGENTA, bold=True, underline=True))
@@ -30,40 +34,53 @@ def screen():
     else:
         printRed(f"\t-> {sumMoney} Baht")
 
-    # ? Monthly Summary
-    # sumMoney = 0
-    # printMagenta("\nMONTY SUMMARY...", bold=True)
-    # prefixYearMonth = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}"
-    # for day in moneyData:
-    #     if day.startswith(prefixYearMonth):
-    #         sumMoney += moneyData[day][0]
-    #         sumMoney -= moneyData[day][1]
-
-    # printMagenta(
-    #     f"  [ {monthNumToStr(thisTime.tm_mon)} {thisTime.tm_year} ]")
-    # if sumMoney >= 200:
-    #     printGreen(f"\t-> {sumMoney} Baht")
-    # elif sumMoney >= 0:
-    #     printYellow(f"\t-> {sumMoney} Baht")
-    # else:
-    #     printRed(f"\t-> {sumMoney} Baht")
+    # ? print today's money
 
     expectedCostMoneyToday = sumMoney // (getDaysInMonth(
         thisTime.tm_year, thisTime.tm_mon) - thisTime.tm_mday + 1)
     printStyle(
         f"\nTODAY'S MONEY... ({getFullDateStr(thisTime.tm_mday, thisTime.tm_mon, thisTime.tm_year)})", bold=True)
     if todayStr in moneyData:
-        printGreen(f"\t-> +{moneyData[todayStr][0]}$", end="")
+        costToday = 0
+        incomeToday = 0
+        for e in moneyData[todayStr]:
+            if e.isIncome():
+                printGreen(f"\t{e.getLabel()} +{e.amount}$")
+                incomeToday += e.amount
+            else:
+                printRed(f"\t{e.getLabel()} {e.amount}$")
+                costToday += e.amount
 
-        if moneyData[todayStr][1] >= expectedCostMoneyToday:  # ? 1 is index of cost money
+        printGreen(f"\n\tTOTAL : +{incomeToday}$", end="")
+
+        if abs(costToday) >= expectedCostMoneyToday:
             # ? exceed expected cost money
-            printRed(f"   -{moneyData[todayStr][1]}$")
+            printRed(f"   {costToday}$")
         else:
-            printYellow(f"   -{moneyData[todayStr][1]}$")
+            printYellow(f"   {costToday}$")
     else:
         printYellow("\t   No data")
     printMagenta(
         f"\t-> Expected cost money: {expectedCostMoneyToday}$", italic=True)
+
+    # ? print monthly summary
+    printStyle("\nMONTHLY SUMMARY...", bold=True)
+    costInMonth = 0
+    incomeInMonth = 0
+    for day in range(1, getDaysInMonth(thisTime.tm_year, thisTime.tm_mon) + 1):
+        thisDayStr = f"{thisTime.tm_year}-{thisTime.tm_mon:02d}-{day:02d}"
+        if thisDayStr in moneyData:
+            for e in moneyData[thisDayStr]:
+                if e.isIncome():
+                    incomeInMonth += e.amount
+                else:
+                    costInMonth += e.amount
+
+    printGreen(f"\t+{incomeInMonth}$", end="")
+    printRed(f"\t{costInMonth}$", end="")
+    printMagenta(f"\tΔ {incomeInMonth + costInMonth}$", italic=True)
+
+    # ? print last 7 days
 
     print("\n")
     printStyle("Last 7 days...", bold=True)
@@ -77,15 +94,23 @@ def screen():
             eachDay) // (getDaysInMonth(eYear, eMonth) - int(eachDay.split("-")[2]) + 1)
         print(f"\t{eachDay} : ", end="")
 
-        printGreen(f"+{moneyData[eachDay][0]}$",
+        incomeMoney = 0
+        costMoney = 0
+        for e in moneyData[eachDay]:
+            if e.isIncome():
+                incomeMoney += e.amount
+            else:
+                costMoney += e.amount
+
+        printGreen(f"+{incomeMoney}$",
                    bold=(eachDay == todayStr), end="")
 
-        if moneyData[eachDay][1] >= expectedCostMoney:  # ? 1 is index of cost money
+        if costMoney >= expectedCostMoney:  # ? 1 is index of cost money
             # ? exceed expected cost money
-            printRed(f"\t-{moneyData[eachDay][1]}$",
+            printRed(f"\t{costMoney}$",
                      bold=(eachDay == todayStr), end="")
         else:
-            printYellow(f"\t-{moneyData[eachDay][1]}$",
+            printYellow(f"\t{costMoney}$",
                         bold=(eachDay == todayStr), end="")
 
         printMagenta(
@@ -96,28 +121,38 @@ def screen():
     if dataMan.isHasBackup():
         printRed("\n/!\\ WARNING: Backup file found (data Backup.yml) /!\\")
         printRed(
-            f"with error message: {dataMan.isValidFile('data Backup.yml')}")
+            f"with error message: {dataMan.isValidV3File('data Backup.yml')}")
         printRed("Delete 'data Backup.yml' to dismiss this warning")
+
+    disp = "[[Enter]] amount of money, press [[up]] and [[down]] to select Label\npress [[esc]] to select command\n"
+    disp = disp.replace("[[", ANSIColorCode.YELLOW)
+    disp = disp.replace("]]", "\033[0m")
+    print(disp)
 
     inputMode = "money"
     selectedCmdInd = 0
     strMoney = ""
-    print(paintTextFormat("Enter",
-                          ANSIColorCode.YELLOW), "amount of money or move", paintTextFormat("arrow key",
-                                                                                            ANSIColorCode.YELLOW), "to select command")
-
-    cmdModes = [("reset income(+) data (for today)", "reset Pos", ANSIColorCode.YELLOW),
-                ("reset cost(-) data (for today)",
-                 "reset Cost", ANSIColorCode.YELLOW),
-                ("editing money data", "edit", "\033[38;5;39m"),
+    isIncome = True
+    selectedLabelInd = 0  # ? Don't confuse with LabelID :D
+    incomeLabelsId = label.getAllLabelId(True)
+    costLabelsId = label.getAllLabelId(False)
+    thisLabelId = costLabelsId[0]
+    cmdModes = [("editing money data", "edit", "\033[38;5;39m"),
+                ("export to CSV", "CSV", ANSIColorCode.GREEN),
                 ("exit program", "exit", ANSIColorCode.RED)]
-    printYellow(f"$ : ", end="", flush=True)
+
+    # ? init display
+    printGreen(f"{label.getLabel(isIncome, thisLabelId).description}",
+               italic=True)
+    print(label.getLabel(isIncome, thisLabelId).label, end="", flush=True)
+    printGreen(f" : ", end="", flush=True)
+
     while True:
         keyInput = readkey()
         # ? reset
-        moveCursor(left=9999)
+        moveCursor(left=9999, up=2)
         if inputMode == "cmd":
-            moveCursor(up=len(cmdModes) + 1)
+            moveCursor(up=len(cmdModes))
         clearAfterCursor()
 
         # ? process
@@ -127,11 +162,29 @@ def screen():
             elif keyInput == key.ENTER:
                 newMoney = parseNumFromStr(strMoney)
                 if newMoney != []:
-                    dataMan.insertOrModify(todayStr, newMoney)
+                    dataMan.insert(
+                        todayStr, newMoney if isIncome else -newMoney, thisLabelId)
                     return "main"
-            elif keyInput in "0123456789.+-":
+            elif keyInput in "0123456789":
                 strMoney += keyInput
-            elif keyInput == key.UP or keyInput == key.DOWN or keyInput == key.ESC or keyInput == key.LEFT or keyInput == key.RIGHT:
+            elif keyInput == '+':
+                if not isIncome:
+                    selectedLabelInd = 0
+                isIncome = True
+            elif keyInput == '-':
+                selectedLabelInd = 0
+                isIncome = not isIncome
+            elif keyInput == key.UP:
+                selectedLabelInd = max(selectedLabelInd - 1, 0)
+            elif keyInput == key.DOWN:
+                if isIncome:
+                    selectedLabelInd = min(
+                        selectedLabelInd + 1, len(incomeLabelsId) - 1)
+                else:
+                    selectedLabelInd = min(
+                        selectedLabelInd + 1, len(costLabelsId) - 1)
+
+            elif keyInput == key.ESC:
                 inputMode = "cmd"
                 selectedCmdInd = 0
 
@@ -144,12 +197,10 @@ def screen():
                 moveCursor(left=9999, up=9999)
                 print("\033[0J", end="", flush=True)
 
-                if cmdModes[selectedCmdInd][1] == "reset Pos":
-                    dataMan.resetData(todayStr, pos=True)
-                elif cmdModes[selectedCmdInd][1] == "reset Cost":
-                    dataMan.resetData(todayStr, neg=True)
-                elif cmdModes[selectedCmdInd][1] == "edit":
+                if cmdModes[selectedCmdInd][1] == "edit":
                     return "edit"
+                elif cmdModes[selectedCmdInd][1] == "CSV":
+                    return "csv"
                 elif cmdModes[selectedCmdInd][1] == "exit":
                     exit(0)
                 return "main"
@@ -160,15 +211,24 @@ def screen():
                 inputMode = "money"
                 strMoney = keyInput
 
+        thisLabelId = incomeLabelsId[selectedLabelInd] if isIncome else costLabelsId[selectedLabelInd]
+
         # ? display
         if inputMode == "money":
             thisNum = parseNumFromStr(strMoney)
-            if thisNum == []:
-                printYellow(f"$ : {strMoney}", end="", flush=True)
-            elif thisNum >= 0:
-                printGreen(f"$ : {strMoney}", end="", flush=True)
+
+            if isIncome:
+                printGreen(
+                    f"{label.getLabel(isIncome, thisLabelId).description}", italic=True)
+                print(label.getLabel(isIncome, thisLabelId).label,
+                      end="", flush=True)
+                printGreen(f" : {strMoney}", end="", flush=True)
             else:
-                printRed(f"$ : {strMoney}", end="", flush=True)
+                printRed(
+                    f"{label.getLabel(isIncome, thisLabelId).description}", italic=True)
+                print(label.getLabel(isIncome, thisLabelId).label,
+                      end="", flush=True)
+                printRed(f" : -{strMoney}", end="", flush=True)
 
         elif inputMode == "cmd":
             for i in range(len(cmdModes)):

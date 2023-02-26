@@ -1,5 +1,7 @@
 import os
 import yaml
+import moneyDataModel as mData
+
 
 moneyData = {}
 accumulatedMoney = {}
@@ -52,51 +54,54 @@ def isValidV3File(fileName):
     if os.path.exists(fileName):
         try:
             with open(fileName, "r") as f:
-                yaml.load(f, Loader=yaml.FullLoader)
+                yaml.load(f, Loader=yaml.Loader)
         except yaml.YAMLError as e:
             return e
     else:
         return "File not found"
 
     if not isinstance(moneyData, dict):
-        return "dataV2.yml is not a valid yaml file"
+        return False
 
     if len(moneyData) > 0:
         if not isinstance(list(moneyData.keys())[0], str):
-            return "dataV2.yml is not a valid yaml file"
+            return False
         if not isinstance(list(moneyData.values())[0], list):
-            return "dataV2.yml is not a valid yaml file"
-        if not isinstance(list(moneyData.values())[0][0], int) and not isinstance(list(moneyData.values())[0][1], int):
-            return "dataV2.yml is not a valid yaml file"
+            return False
 
-        if len(list(moneyData.values())[0]) != 2:
-            return "dataV2.yml is not a valid yaml file"
+        if len(list(moneyData.values())[0]) > 0 and not isinstance(list(moneyData.values())[0][0], mData.MoneyData):
+            return False
 
     return True
 
 
 def loadData():
     global moneyData, accumulatedMoney
+    v3Validating = isValidV3File("dataV3.yml")
     v2Validating = isValidV2File("dataV2.yml")
     v1Validating = isValidFile("data.yml")
 
-    if v2Validating == "dataV2.yml is not a valid yaml file":
+    if v3Validating == False:
         doBackupData()
 
-    if v2Validating == True:
+    if v3Validating == True:
+        with open("dataV3.yml", "r") as f:
+            moneyData = yaml.load(f, Loader=yaml.Loader)
+    elif v2Validating == True:
+        # ? Convert dataV2.yml to dataV3.yml
         with open("dataV2.yml", "r") as f:
-            moneyData = yaml.load(f, Loader=yaml.FullLoader)
-    elif v1Validating == True:
-        # TODO: Convert data.yml to dataV2.yml
-        with open("data.yml", "r") as f:
-            moneyData = yaml.load(f, Loader=yaml.FullLoader)
-        for key in moneyData:
-            if moneyData[key] > 0:
-                moneyData[key] = [moneyData[key], 0]
-            else:
-                moneyData[key] = [0, -moneyData[key]]
-
+            oldMoneyData = yaml.load(f, Loader=yaml.FullLoader)
+        for key in oldMoneyData:
+            moneyData[key] = []
+            moneyData[key].append(mData.MoneyData(oldMoneyData[key][0], 9999))
+            moneyData[key].append(mData.MoneyData(-oldMoneyData[key][1], 9999))
         saveData()
+    elif v1Validating == True:
+        # ? Convert data.yml to dataV3.yml
+        with open("dataV2.yml", "r") as f:
+            oldMoneyData = yaml.load(f, Loader=yaml.FullLoader)
+        for key in oldMoneyData:
+            moneyData[key] = [mData.MoneyData(oldMoneyData[key], 9999)]
     else:
         moneyData = {}
         saveData()
@@ -109,8 +114,8 @@ def reloadAccumulatedMoney():
     accumulatedMoney = {}
     total = 0
     for key in sorted(list(moneyData.keys())):
-        total += moneyData[key][0]
-        total -= moneyData[key][1]
+        for money in moneyData[key]:
+            total += money.amount
         accumulatedMoney[key] = total
 
 
@@ -139,8 +144,10 @@ def getLastAccumulatedMoney(day: str):
 
 
 def doBackupData():
-    if os.path.exists("dataV2.yml"):
-        os.rename("dataV2.yml", "data Backup.yml")
+    if os.path.exists("dataV3.yml"):
+        if os.path.exists("data Backup.yml"):
+            os.remove("data Backup.yml")
+        os.rename("dataV3.yml", "data Backup.yml")
 
 
 def isHasBackup():
@@ -150,7 +157,7 @@ def isHasBackup():
 
 
 def saveData():
-    with open("dataV2.yml", "w") as f:
+    with open("dataV3.yml", "w") as f:
         yaml.dump(moneyData, f)
 
 
@@ -159,35 +166,35 @@ def getMoneyData():
     return moneyData
 
 
-def insertOrModify(day, money):
+def insert(day, moneyAmount, labelId):
     global moneyData
     if day in moneyData:
-        if money > 0:
-            moneyData[day][0] += money
-        else:
-            moneyData[day][1] += -money
+        moneyData[day].append(mData.MoneyData(moneyAmount, labelId))
     else:
-        if money > 0:
-            moneyData[day] = [money, 0]
-        else:
-            moneyData[day] = [0, -money]
+        moneyData[day] = [mData.MoneyData(moneyAmount, labelId)]
     reloadAccumulatedMoney()
     saveData()
 
 
-def resetData(day, pos: bool = False, neg: bool = False):
+def modify(day, index, newMoneyAmount, newLabelId):
     global moneyData
-    insertOrModify(day, 0)
     if day in moneyData:
-        if pos:
-            moneyData[day][0] = 0
-        if neg:
-            moneyData[day][1] = 0
+        moneyData[day][index] = mData.MoneyData(newMoneyAmount, newLabelId)
+    reloadAccumulatedMoney()
+    saveData()
+
+
+def deleteMoneyData(day, index):
+    global moneyData
+    if day in moneyData:
+        del moneyData[day][index]
+        if len(moneyData[day]) == 0:
+            del moneyData[day]
         reloadAccumulatedMoney()
         saveData()
 
 
-def deleteData(day):
+def deleteDayData(day):
     global moneyData
     if day in moneyData:
         del moneyData[day]

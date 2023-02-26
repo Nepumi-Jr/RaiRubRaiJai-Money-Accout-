@@ -5,11 +5,13 @@ from printUtil import *
 
 from pages.main import screen as mainScreen
 from pages.edit import screen as editScreen
+from pages.csvExport import screen as csvScreen
 
 if __name__ == "__main__":
     funcCallMapper = {
         "main": mainScreen,
-        "edit": editScreen
+        "edit": editScreen,
+        "csv": csvScreen,
     }
     screen = "main"
     while True:
